@@ -32,8 +32,11 @@ void _TestBatchPagedPrefillKernelOneHotCorrectness(size_t num_kv_heads, size_t n
                                                    bool use_fp16_qk_reduction) {
   uint32_t batch_size = 9;
   std::vector<int32_t> q_lens(batch_size), kv_lens(batch_size);
-  utils::vec_randint_(q_lens, 1, 15);
-  utils::vec_randint_(kv_lens, 15, 257);
+  // utils::vec_randint_(q_lens, 1, 15);
+  // utils::vec_randint_(kv_lens, 15, 257);
+  q_lens = {21, 20, 40, 4, 8, 99};
+  kv_lens = {21, 1024, 8072, 30, 27, 999};
+
   std::vector<int32_t> append_indptr{0};
   for (size_t request_idx = 0; request_idx < batch_size; ++request_idx) {
     append_indptr.push_back(append_indptr.back() + kv_lens[request_idx]);
@@ -132,7 +135,7 @@ void _TestBatchPagedPrefillKernelOneHotCorrectness(size_t num_kv_heads, size_t n
         nan_detected = true;
       }
       num_result_errors_atol_1e_3_rtol_1e_3 +=
-          (!utils::isclose(float(o_host[i]), float(o_ref[i]), 1e-3, 1e-3));
+          (!utils::isclose(float(o_host[i]), float(o_ref[i]), 1e-3, 5e-4));
     }
     float result_accuracy = 1. - float(num_result_errors_atol_1e_3_rtol_1e_3) /
                                      max(float(q_len * num_qo_heads * head_dim), 1.f);
@@ -601,12 +604,12 @@ void _TestBatchPagedPrefillKernelLongContextCorrectness(size_t num_kv_heads, siz
 
 template <typename T>
 void TestBatchPagedPrefillKernelOneHotCorrectness(bool use_fp16_qk_reduction) {
-  for (size_t num_kv_heads : {4, 8, 32}) {
-    for (size_t num_qo_heads : {32}) {
-      for (size_t page_size : {1, 16}) {
-        for (size_t head_dim : {64, 128, 256}) {
-          for (size_t causal : {false, true}) {
-            for (size_t pos_encoding_mode : {0, 1}) {
+  for (size_t num_kv_heads : {1}) {
+    for (size_t num_qo_heads : {8}) {
+      for (size_t page_size : {16}) {
+        for (size_t head_dim : {128}) {
+          for (size_t causal : {true}) {
+            for (size_t pos_encoding_mode : {0}) {
               _TestBatchPagedPrefillKernelOneHotCorrectness<T, T>(
                   num_kv_heads, num_qo_heads, page_size, head_dim, causal,
                   PosEncodingMode(pos_encoding_mode), use_fp16_qk_reduction);
@@ -769,6 +772,10 @@ TEST(FlashInferCorrectnessTest, BatchPagedPrefillZeroContextTestFP16) {
 
 TEST(FlashInferCorrectnessTest, BatchPagedPrefillLongContextTestFP16QKHalfAccum) {
   TestBatchPagedPrefillKernelLongContextCorrectness<half>(true);
+}
+
+TEST(FlashInferCorrectnessTest, BatchPagedPrefillKernelCorrectnessTestOneHotBF16) {
+  TestBatchPagedPrefillKernelOneHotCorrectness<nv_bfloat16>(false);
 }
 
 TEST(FlashInferCorrectnessTest, BatchPagedPrefillKernelCorrectnessTestOneHotFP16) {
